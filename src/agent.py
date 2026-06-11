@@ -39,7 +39,18 @@ class PPOAgent:
             log_prob_z = dist.log_prob(z)
             log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-7).sum(dim=-1)
 
-            return z.squeeze(0).detach().cpu().numpy(), action.squeeze(0).detach().cpu().numpy(), log_prob.squeeze(0).detach().cpu().numpy(), value.squeeze(0).detach().cpu().numpy()
+            return (
+                z.squeeze(0).detach().cpu().numpy(),
+                action.squeeze(0).detach().cpu().numpy(),
+                float(log_prob.squeeze().detach().cpu().numpy()),
+                float(value.squeeze().detach().cpu().numpy()),
+            )
+        
+    def get_value(self, state):
+        with torch.no_grad():
+            state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+            _, value = self.model(state)
+            return float(value.squeeze().detach().cpu().numpy())
 
     def store_experience(self, state, z, value, next_value, reward, log_prob, done):
         exp = experience(state, z, value, next_value, reward, log_prob, done)
