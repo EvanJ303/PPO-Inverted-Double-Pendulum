@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from agent import PPOAgent
 
-agent = PPOAgent(4, 1)
+agent = PPOAgent(9, 1)
 
 env = gym.make('InvertedDoublePendulum-v5')
 
