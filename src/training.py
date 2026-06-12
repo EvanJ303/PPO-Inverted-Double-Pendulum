@@ -26,7 +26,7 @@ for fill_idx in range(NUM_BUFFER_FILLS):
     # collect episode rewards that finish during this buffer fill
     per_fill_rewards = []
     for _ in range(agent.buffer.buffer.maxlen):
-        z, action, log_prob, value = agent.step(obs)
+        z, action, log_prob, value = agent.step(obs, training=True)
 
         next_obs, reward, terminated, truncated, info = env.step(action)
         episode_reward += reward

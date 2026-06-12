@@ -14,13 +14,14 @@ class ActorCritic(nn.Module):
                 nn.Tanh(),
                 nn.Linear(256, output_dim)
             )
-        
+
         self.actor = mlp(state_dim, action_dim)
         self.critic = mlp(state_dim, 1)
+
         self.log_std = nn.Parameter(torch.zeros(action_dim))
 
     def forward(self, state):
-        mu = self.actor(state)
+        mu = torch.tanh(self.actor(state))
         value = self.critic(state)
         log_std = self.log_std.clamp(-20, 2)
         std = torch.exp(log_std)

@@ -17,7 +17,7 @@ class rollout_buffer:
 class PPOAgent:
     def __init__(self, state_dim, action_dim):
         self.model = ActorCritic(state_dim, action_dim)
-        self.buffer = rollout_buffer(capacity=2048)
+        self.buffer = rollout_buffer(capacity=4096)
 
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.model.to(self.device)
@@ -26,12 +26,12 @@ class PPOAgent:
         self.epsilon = 0.2
         self.gae_lambda = 0.95
         self.lr = 3e-4
-        self.batch_size = 64
+        self.batch_size = 128
         self.num_epochs = 10
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
-    def step(self, state, training=True):
+    def step(self, state, training):
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
             dist, value = self.model(state)
@@ -49,7 +49,7 @@ class PPOAgent:
                     float(value.squeeze().detach().cpu().numpy()),
                 )
             else:
-                z = dist.mean()
+                z = dist.mean
                 action = torch.tanh(z)
 
                 return action.squeeze(0).detach().cpu().numpy()
@@ -91,7 +91,9 @@ class PPOAgent:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         for _ in range(self.num_epochs):
+            kl_exceeded = False
             indices = torch.randperm(len(rollout))
+            
             for i in range(0, len(rollout), self.batch_size):
                 batch_indices = indices[i:i + self.batch_size]
                 batch_states = states[batch_indices]
@@ -104,9 +106,10 @@ class PPOAgent:
                 new_log_probs_z = dist.log_prob(batch_z)
                 new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-7).sum(dim=-1)
 
-                approx_kl = (batch_log_probs - new_log_probs).mean().item()
+                approx_kl = (batch_log_probs - new_log_probs).mean()
                 if approx_kl > 0.015:
-                    return
+                    kl_exceeded = True
+                    break
 
                 ratio = torch.exp(new_log_probs - batch_log_probs)
                 surr1 = ratio * batch_advantages
@@ -123,6 +126,9 @@ class PPOAgent:
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
                 self.optimizer.step()
+            
+            if kl_exceeded:
+                break
 
     def clear_buffer(self):
         self.buffer.clear()
