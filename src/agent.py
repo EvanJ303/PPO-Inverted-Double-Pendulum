@@ -39,7 +39,7 @@ class PPOAgent:
             if training:
                 z = dist.sample()
                 action = torch.tanh(z)
-                log_prob_z = dist.log_prob(z)
+                log_prob_z = dist.log_prob(z).sum(dim=-1)
                 log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-7).sum(dim=-1)
 
                 return (
@@ -93,7 +93,7 @@ class PPOAgent:
         for _ in range(self.num_epochs):
             kl_exceeded = False
             indices = torch.randperm(len(rollout))
-            
+
             for i in range(0, len(rollout), self.batch_size):
                 batch_indices = indices[i:i + self.batch_size]
                 batch_states = states[batch_indices]
@@ -103,7 +103,7 @@ class PPOAgent:
                 batch_returns = returns[batch_indices]
 
                 dist, value = self.model(batch_states)
-                new_log_probs_z = dist.log_prob(batch_z)
+                new_log_probs_z = dist.log_prob(batch_z).sum(dim=-1)
                 new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-7).sum(dim=-1)
 
                 approx_kl = (batch_log_probs - new_log_probs).mean()
@@ -118,7 +118,7 @@ class PPOAgent:
 
                 critic_loss = (batch_returns - value.squeeze(1)).pow(2).mean()
 
-                entropy_loss = dist.entropy().mean()
+                entropy_loss = dist.entropy().sum(dim=-1).mean()
 
                 loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss
 
