@@ -27,24 +27,32 @@ class PPOAgent:
         self.gae_lambda = 0.95
         self.lr = 3e-4
         self.batch_size = 64
+        self.num_epochs = 10
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
-    def step(self, state):
+    def step(self, state, stochastic=True):
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
             dist, value = self.model(state)
-            z = dist.sample()
-            action = torch.tanh(z)
-            log_prob_z = dist.log_prob(z)
-            log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-7).sum(dim=-1)
 
-            return (
-                z.squeeze(0).detach().cpu().numpy(),
-                action.squeeze(0).detach().cpu().numpy(),
-                float(log_prob.squeeze().detach().cpu().numpy()),
-                float(value.squeeze().detach().cpu().numpy()),
-            )
+            if stochastic:
+                z = dist.sample()
+                action = torch.tanh(z)
+                log_prob_z = dist.log_prob(z)
+                log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-7).sum(dim=-1)
+
+                return (
+                    z.squeeze(0).detach().cpu().numpy(),
+                    action.squeeze(0).detach().cpu().numpy(),
+                    float(log_prob.squeeze().detach().cpu().numpy()),
+                    float(value.squeeze().detach().cpu().numpy()),
+                )
+            else:
+                z = dist.mean()
+                action = torch.tanh(z)
+
+                return action.squeeze(0).detach().cpu().numpy()
         
     def get_value(self, state):
         with torch.no_grad():
@@ -82,34 +90,39 @@ class PPOAgent:
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        indices = torch.randperm(len(rollout))
-        for i in range(0, len(rollout), self.batch_size):
-            batch_indices = indices[i:i + self.batch_size]
-            batch_states = states[batch_indices]
-            batch_z = z_values[batch_indices]
-            batch_log_probs = log_probs[batch_indices]
-            batch_advantages = advantages[batch_indices]
-            batch_returns = returns[batch_indices]
+        for _ in range(self.num_epochs):
+            indices = torch.randperm(len(rollout))
+            for i in range(0, len(rollout), self.batch_size):
+                batch_indices = indices[i:i + self.batch_size]
+                batch_states = states[batch_indices]
+                batch_z = z_values[batch_indices]
+                batch_log_probs = log_probs[batch_indices]
+                batch_advantages = advantages[batch_indices]
+                batch_returns = returns[batch_indices]
 
-            dist, value = self.model(batch_states)
-            new_log_probs_z = dist.log_prob(batch_z)
-            new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-7).sum(dim=-1)
+                dist, value = self.model(batch_states)
+                new_log_probs_z = dist.log_prob(batch_z)
+                new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-7).sum(dim=-1)
 
-            ratio = torch.exp(new_log_probs - batch_log_probs)
-            surr1 = ratio * batch_advantages
-            surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * batch_advantages
-            actor_loss = -torch.min(surr1, surr2).mean()
+                approx_kl = (batch_log_probs - new_log_probs).mean().item()
+                if approx_kl > 0.015:
+                    return
 
-            critic_loss = (batch_returns - value.squeeze(1)).pow(2).mean()
+                ratio = torch.exp(new_log_probs - batch_log_probs)
+                surr1 = ratio * batch_advantages
+                surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * batch_advantages
+                actor_loss = -torch.min(surr1, surr2).mean()
 
-            entropy_loss = dist.entropy().mean()
+                critic_loss = (batch_returns - value.squeeze(1)).pow(2).mean()
 
-            loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss
+                entropy_loss = dist.entropy().mean()
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
-            self.optimizer.step()
+                loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
+                self.optimizer.step()
 
     def clear_buffer(self):
         self.buffer.clear()

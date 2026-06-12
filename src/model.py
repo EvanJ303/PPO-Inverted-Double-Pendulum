@@ -6,31 +6,23 @@ class ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
 
-        self.shared = nn.Sequential(
-            nn.Linear(state_dim, 256),
-            nn.Tanh(),
-            nn.Linear(256, 256),
-            nn.Tanh(),
-            nn.Linear(256, 256),
-            nn.Tanh()
-        )
-
-        self.mu_head = nn.Linear(256, action_dim)
+        def mlp(input_dim, output_dim):
+            return nn.Sequential(
+                nn.Linear(input_dim, 256),
+                nn.Tanh(),
+                nn.Linear(256, 256),
+                nn.Tanh(),
+                nn.Linear(256, output_dim)
+            )
+        
+        self.actor = mlp(state_dim, action_dim)
+        self.critic = mlp(state_dim, 1)
         self.log_std = nn.Parameter(torch.zeros(action_dim))
 
-        self.critic = nn.Sequential(
-            nn.Linear(256, 256),
-            nn.Tanh(),
-            nn.Linear(256, 1)
-        )
-
     def forward(self, state):
-        shared_out = self.shared(state)
-        mu = self.mu_head(shared_out)
-
+        mu = self.actor(state)
+        value = self.critic(state)
         log_std = self.log_std.clamp(-20, 2)
         std = torch.exp(log_std)
         
-        dist = Normal(mu, std)
-        value = self.critic(shared_out)
-        return dist, value
+        return Normal(mu, std), value
