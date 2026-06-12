@@ -12,7 +12,7 @@ env = gym.make('InvertedDoublePendulum-v5')
 os.makedirs('./data/models', exist_ok=True)
 os.makedirs('./data/plots', exist_ok=True)
 
-NUM_BUFFER_FILLS = 100
+NUM_BUFFER_FILLS = 250
 MAX_RECENT_EPISODES = 50
 
 obs, info = env.reset()
