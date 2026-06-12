@@ -19,7 +19,7 @@ class PPOAgent:
         self.model = ActorCritic(state_dim, action_dim)
         self.buffer = rollout_buffer(capacity=2048)
 
-        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.model.to(self.device)
 
         self.gamma = 0.99
@@ -31,12 +31,12 @@ class PPOAgent:
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
-    def step(self, state, stochastic=True):
+    def step(self, state, training=True):
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
             dist, value = self.model(state)
 
-            if stochastic:
+            if training:
                 z = dist.sample()
                 action = torch.tanh(z)
                 log_prob_z = dist.log_prob(z)

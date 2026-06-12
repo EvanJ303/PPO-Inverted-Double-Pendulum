@@ -45,9 +45,9 @@ for fill_idx in range(NUM_BUFFER_FILLS):
             recent_rewards.append(episode_reward)
             running_avg = sum(recent_rewards) / len(recent_rewards)
             print(
-                f"[Buffer {fill_idx + 1}/{NUM_BUFFER_FILLS}] "
-                f"Episode {episode_count} reward={episode_reward:.2f} "
-                f"running_avg_last{len(recent_rewards)}={running_avg:.2f}"
+                f'[Buffer {fill_idx + 1}/{NUM_BUFFER_FILLS}] '
+                f'Episode {episode_count} reward={episode_reward:.2f} '
+                f'running_avg_last{len(recent_rewards)}={running_avg:.2f}'
             )
             episode_reward = 0.0
             obs, info = env.reset()
@@ -65,13 +65,13 @@ for fill_idx in range(NUM_BUFFER_FILLS):
         avg_rewards.append(0.0)
 
     print(
-        f"Completed buffer fill {fill_idx + 1}/{NUM_BUFFER_FILLS}: "
-        f"total_episodes={episode_count}, overall_avg_reward={avg_rewards[-1]:.2f}"
+        f'Completed buffer fill {fill_idx + 1}/{NUM_BUFFER_FILLS}: '
+        f'total_episodes={episode_count}, overall_avg_reward={avg_rewards[-1]:.2f}'
     )
 
     # Only save model and plots every 10 buffer fills
     if (fill_idx + 1) % 10 == 0:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         checkpoint_path = f'./data/models/ppo_agent_{timestamp}.pth'
         agent.save_model(checkpoint_path)
 
