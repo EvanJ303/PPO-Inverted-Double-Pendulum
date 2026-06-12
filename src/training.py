@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import gymnasium as gym
 import os
+from collections import deque
 from datetime import datetime
 from agent import PPOAgent
 
@@ -13,11 +14,14 @@ os.makedirs('./data/plots', exist_ok=True)
 
 NUM_BUFFER_FILLS = 100
 EPOCHS_PER_BUFFER_FILL = 10
+MAX_RECENT_EPISODES = 50
 
 obs, info = env.reset()
 episode_reward = 0.0
 episode_rewards = []
 avg_rewards = []
+episode_count = 0
+recent_rewards = deque(maxlen=MAX_RECENT_EPISODES)
 
 for fill_idx in range(NUM_BUFFER_FILLS):
     for _ in range(agent.buffer.buffer.maxlen):
@@ -35,6 +39,14 @@ for fill_idx in range(NUM_BUFFER_FILLS):
         
         if terminated or truncated:
             episode_rewards.append(episode_reward)
+            episode_count += 1
+            recent_rewards.append(episode_reward)
+            running_avg = sum(recent_rewards) / len(recent_rewards)
+            print(
+                f"[Buffer {fill_idx + 1}/{NUM_BUFFER_FILLS}] "
+                f"Episode {episode_count} reward={episode_reward:.2f} "
+                f"running_avg_last{len(recent_rewards)}={running_avg:.2f}"
+            )
             episode_reward = 0.0
             obs, info = env.reset()
         else:
@@ -56,6 +68,11 @@ for fill_idx in range(NUM_BUFFER_FILLS):
         avg_rewards.append(sum(episode_rewards) / len(episode_rewards))
     else:
         avg_rewards.append(0.0)
+
+    print(
+        f"Completed buffer fill {fill_idx + 1}/{NUM_BUFFER_FILLS}: "
+        f"total_episodes={episode_count}, overall_avg_reward={avg_rewards[-1]:.2f}"
+    )
 
     fig = plt.figure(figsize=(8, 4))
     plt.plot(avg_rewards, marker='o', linewidth=2)
