@@ -2,9 +2,11 @@ import torch
 from collections import deque, namedtuple
 from model import ActorCritic
 
+# Experience tuple stores trajectories for PPO training
 experience = namedtuple('Experience', ['state', 'z', 'value', 'next_value', 'reward', 'log_prob', 'done'])
 
 class rollout_buffer:
+    """Fixed-size buffer for collecting rollout experiences."""
     def __init__(self, capacity):
         self.buffer = deque(maxlen=capacity)
 
@@ -33,6 +35,7 @@ class PPOAgent:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
     def step(self, state, training):
+        """Sample action and compute log-prob with tanh correction for continuous control."""
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
             dist, value = self.model(state)
@@ -41,6 +44,7 @@ class PPOAgent:
                 z = dist.sample()
                 action = torch.tanh(z)
                 log_prob_z = dist.log_prob(z).sum(dim=-1)
+                # Jacobian correction for tanh transformation
                 log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-8).sum(dim=-1)
 
                 return (
@@ -66,10 +70,13 @@ class PPOAgent:
         self.buffer.add(exp)
 
     def compute_gae(self, rewards, values, next_values, dones):
+        """Compute Generalized Advantage Estimation (GAE) for temporal-difference learning."""
         advantages = []
         gae = 0
         for i in reversed(range(len(rewards))):
+            # TD residual: r_t + γV(s_{t+1}) - V(s_t), zero bootstrap at episode end
             delta = rewards[i] + self.gamma * next_values[i] * (1 - dones[i]) - values[i]
+            # Accumulate GAE with exponential decay, reset at episode boundaries
             gae = delta + self.gamma * self.gae_lambda * (1 - dones[i]) * gae
             advantages.insert(0, gae)
         return advantages
@@ -87,8 +94,10 @@ class PPOAgent:
         advantages = self.compute_gae(rewards, values, next_values, dones)
         advantages = torch.FloatTensor(advantages).to(self.device)
 
+        # Compute returns (advantage + baseline value) for critic loss
         returns = advantages + values
 
+        # Normalize advantages to reduce variance and improve gradient stability
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         for _ in range(self.num_epochs):
@@ -105,22 +114,29 @@ class PPOAgent:
 
                 dist, value = self.model(batch_states)
                 new_log_probs_z = dist.log_prob(batch_z).sum(dim=-1)
+                # Apply same tanh correction as in step() for consistency
                 new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-8).sum(dim=-1)
 
+                # Early stopping: if policy change is too large, skip remaining epochs
                 approx_kl = (batch_log_probs - new_log_probs).mean()
                 if approx_kl > self.kl_threshold:
                     kl_exceeded = True
                     break
 
+                # PPO clipped surrogate objective
                 ratio = torch.exp(new_log_probs - batch_log_probs)
                 surr1 = ratio * batch_advantages
                 surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * batch_advantages
+                # Take minimum to clip policy update
                 actor_loss = -torch.min(surr1, surr2).mean()
 
+                # MSE loss for value function approximation
                 critic_loss = (batch_returns - value.squeeze(1)).pow(2).mean()
 
+                # Entropy encourages exploration
                 entropy_loss = dist.entropy().sum(dim=-1).mean()
 
+                # Total loss: policy + value + entropy regularization
                 loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss
 
                 self.optimizer.zero_grad()

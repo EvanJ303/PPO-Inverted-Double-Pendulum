@@ -5,8 +5,10 @@ from collections import deque
 from datetime import datetime
 from agent import PPOAgent
 
+# Initialize PPO agent: state_dim=9, action_dim=1 (continuous control)
 agent = PPOAgent(9, 1)
 
+# InvertedDoublePendulum environment: maximize balance time up to 1000 steps
 env = gym.make('InvertedDoublePendulum-v5')
 
 os.makedirs('./data/models', exist_ok=True)
@@ -23,47 +25,57 @@ episode_count = 0
 recent_rewards = deque(maxlen=MAX_RECENT_EPISODES)
 
 for fill_idx in range(NUM_BUFFER_FILLS):
-    # collect episode rewards that finish during this buffer fill
+    # Collect trajectories until buffer is full (4096 steps)
     per_fill_rewards = []
     for _ in range(agent.buffer.buffer.maxlen):
+        # Get action and log-prob from current policy
         z, action, log_prob, value = agent.step(obs, training=True)
 
+        # Execute action in environment
         next_obs, reward, terminated, truncated, info = env.step(action)
         episode_reward += reward
 
+        # Bootstrap: zero value at true terminal, otherwise estimate from next state
         if terminated:
             next_value = 0.0
         else:
             next_value = agent.get_value(next_obs)
 
+        # Store experience for GAE computation
         agent.store_experience(obs, z, value, next_value, reward, log_prob, terminated)
         
+        # Handle episode termination (natural end or time limit)
         if terminated or truncated:
             episode_rewards.append(episode_reward)
             per_fill_rewards.append(episode_reward)
             episode_count += 1
             recent_rewards.append(episode_reward)
             running_avg = sum(recent_rewards) / len(recent_rewards)
-            print(
-                f'[Buffer {fill_idx + 1}/{NUM_BUFFER_FILLS}] '
-                f'Episode {episode_count} reward={episode_reward:.2f} '
-                f'running_avg_last{len(recent_rewards)}={running_avg:.2f}'
-            )
+            # Print episode performance every 10 episodes
+            if episode_count % 10 == 0:
+                print(
+                    f'[Buffer {fill_idx + 1}/{NUM_BUFFER_FILLS}] '
+                    f'Episode {episode_count} reward={episode_reward:.2f} '
+                    f'running_avg_last{len(recent_rewards)}={running_avg:.2f}'
+                )
             episode_reward = 0.0
             obs, info = env.reset()
         else:
             obs = next_obs
 
+    # Perform PPO updates on collected rollout
     agent.optimize_model()
 
+    # Clear buffer for next rollout collection
     agent.clear_buffer()
 
-    # record average reward for this buffer fill (not cumulative)
+    # Record average episode reward for this buffer (not cumulative)
     if per_fill_rewards:
         avg_rewards.append(sum(per_fill_rewards) / len(per_fill_rewards))
     else:
         avg_rewards.append(0.0)
 
+    # Print completion message for this buffer fill
     print(
         f'Completed buffer fill {fill_idx + 1}/{NUM_BUFFER_FILLS}: '
         f'total_episodes={episode_count}, overall_avg_reward={avg_rewards[-1]:.2f}'
