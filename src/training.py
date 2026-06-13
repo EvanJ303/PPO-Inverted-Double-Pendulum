@@ -12,7 +12,7 @@ env = gym.make('InvertedDoublePendulum-v5')
 os.makedirs('./data/models', exist_ok=True)
 os.makedirs('./data/plots', exist_ok=True)
 
-NUM_BUFFER_FILLS = 250
+NUM_BUFFER_FILLS = 500
 MAX_RECENT_EPISODES = 50
 
 obs, info = env.reset()
@@ -69,8 +69,8 @@ for fill_idx in range(NUM_BUFFER_FILLS):
         f'total_episodes={episode_count}, overall_avg_reward={avg_rewards[-1]:.2f}'
     )
 
-    # Only save model and plots every 10 buffer fills
-    if (fill_idx + 1) % 10 == 0:
+    # Only save model and plots every 50 buffer fills
+    if (fill_idx + 1) % 50 == 0:
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         checkpoint_path = f'./data/models/ppo_agent_{timestamp}.pth'
         agent.save_model(checkpoint_path)

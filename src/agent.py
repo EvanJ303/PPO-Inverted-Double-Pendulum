@@ -27,7 +27,8 @@ class PPOAgent:
         self.gae_lambda = 0.95
         self.lr = 3e-4
         self.batch_size = 128
-        self.num_epochs = 10
+        self.num_epochs = 8
+        self.kl_threshold = 0.03
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
@@ -40,13 +41,13 @@ class PPOAgent:
                 z = dist.sample()
                 action = torch.tanh(z)
                 log_prob_z = dist.log_prob(z).sum(dim=-1)
-                log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-7).sum(dim=-1)
+                log_prob = log_prob_z - torch.log(1 - action.pow(2) + 1e-8).sum(dim=-1)
 
                 return (
                     z.squeeze(0).detach().cpu().numpy(),
                     action.squeeze(0).detach().cpu().numpy(),
-                    float(log_prob.squeeze().detach().cpu().numpy()),
-                    float(value.squeeze().detach().cpu().numpy()),
+                    log_prob.squeeze().detach().cpu().item(),
+                    value.squeeze().detach().cpu().item(),
                 )
             else:
                 z = dist.mean
@@ -58,7 +59,7 @@ class PPOAgent:
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
             _, value = self.model(state)
-            return float(value.squeeze().detach().cpu().numpy())
+            return value.squeeze().detach().cpu().item()
 
     def store_experience(self, state, z, value, next_value, reward, log_prob, done):
         exp = experience(state, z, value, next_value, reward, log_prob, done)
@@ -104,10 +105,10 @@ class PPOAgent:
 
                 dist, value = self.model(batch_states)
                 new_log_probs_z = dist.log_prob(batch_z).sum(dim=-1)
-                new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-7).sum(dim=-1)
+                new_log_probs = new_log_probs_z - torch.log(1 - torch.tanh(batch_z).pow(2) + 1e-8).sum(dim=-1)
 
                 approx_kl = (batch_log_probs - new_log_probs).mean()
-                if approx_kl > 0.015:
+                if approx_kl > self.kl_threshold:
                     kl_exceeded = True
                     break
 
