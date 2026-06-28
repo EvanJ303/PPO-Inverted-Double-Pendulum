@@ -81,8 +81,8 @@ for fill_idx in range(NUM_BUFFER_FILLS):
         f'total_episodes={episode_count}, overall_avg_reward={avg_rewards[-1]:.2f}'
     )
 
-    # Only save model and plots every 50 buffer fills
-    if (fill_idx + 1) % 50 == 0:
+    # Only save model and plots every 50 buffer fills or at the last buffer fill
+    if (fill_idx + 1) % 50 == 0 or (fill_idx + 1) == NUM_BUFFER_FILLS:
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         checkpoint_path = f'./data/models/ppo_agent_{timestamp}.pth'
         agent.save_model(checkpoint_path)
