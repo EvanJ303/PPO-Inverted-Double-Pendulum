@@ -14,6 +14,9 @@ env = gym.make('InvertedDoublePendulum-v5')
 os.makedirs('./data/models', exist_ok=True)
 os.makedirs('./data/plots', exist_ok=True)
 
+# Timestamp at the start of the training session for saving plots
+session_timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
 NUM_BUFFER_FILLS = 500
 MAX_RECENT_EPISODES = 50
 
@@ -83,8 +86,8 @@ for fill_idx in range(NUM_BUFFER_FILLS):
 
     # Only save model and plots every 50 buffer fills or at the last buffer fill
     if (fill_idx + 1) % 50 == 0 or (fill_idx + 1) == NUM_BUFFER_FILLS:
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        checkpoint_path = f'./data/models/ppo_agent_{timestamp}.pth'
+        current_timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        checkpoint_path = f'./data/models/ppo_agent_{current_timestamp}.pth'
         agent.save_model(checkpoint_path)
 
         with open('./data/latest_checkpoint.txt', 'w') as f:
@@ -97,6 +100,5 @@ for fill_idx in range(NUM_BUFFER_FILLS):
         plt.title('Training performance')
         plt.grid(True)
         plt.tight_layout()
-        fig.savefig(f'./data/plots/training_rewards_{timestamp}.png')
-        fig.savefig(f'./data/plots/latest_training_rewards.png')
+        fig.savefig(f'./data/plots/training_rewards_{session_timestamp}.png')
         plt.close(fig)
