@@ -15,11 +15,11 @@ def main():
     agent.load_model(checkpoint_path)
 
     for episode in range(NUM_EPISODES):
-        state, _ = env.reset()
+        obs, info = env.reset()
         done = False
         while not done:
-            action = agent.step(state, training=False)
-            state, reward, terminated, truncated, _ = env.step(action)
+            action = agent.step(obs, training=False)
+            obs, reward, terminated, truncated, info = env.step(action)
             time.sleep(1/30)
             done = terminated or truncated
 

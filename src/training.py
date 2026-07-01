@@ -21,7 +21,7 @@ def main():
     # Timestamp at the start of the training session for saving plots
     session_timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
-    obs, _ = env.reset()
+    obs, info = env.reset()
     episode_reward = 0.0
     episode_rewards = []
     avg_rewards = []
